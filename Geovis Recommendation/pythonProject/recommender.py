@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from util import is_quantitative, Design
 
-Q = ["_", "SIZE", "COLOR_LIGHTNESS", "COLOR_HUE"]
+Q = ["_", "SIZE", "COLOR_LIGHTNESS_H", "COLOR_LIGHTNESS_L", "COLOR_HUE"]
 
 
 def recommend_visualisations(
@@ -35,8 +35,9 @@ def recommend_visualisations(
 
         for i in range(len(design.columns)):
             if design.encodings[i] == "_":
-                continue
-
+                args["edgecolor"] = "white"
+                args["s"] = 7
+                args["alpha"] = 0.8
             if design.encodings[i] == "SIZE":
                 args["scale"] = design.columns[i]
                 args["limits"] = (4, 20)
@@ -44,10 +45,13 @@ def recommend_visualisations(
                 args["color"] = "white"
                 args["alpha"] = 0.7
                 args["legend"] = True
-            elif design.encodings[i] == "COLOR_LIGHTNESS":
+            elif design.encodings[i] == "COLOR_LIGHTNESS_H":
                 args["hue"] = design.columns[i]
-                args["cmap"] = "OrRd"
-                args["legend"] = True
+                args["cmap"] = "Blues"
+            elif design.encodings[i] == "COLOR_LIGHTNESS_L":
+                args["hue"] = design.columns[i]
+                args["cmap"] = "Blues_r"
+                # args["legend"] = True
                 # args["legend_kwargs"] = {"bbox_to_anchor": (0, 0, 0.5, 0.5)}
             elif design.encodings[i] == "COLOR_HUE":
                 args["hue"] = design.columns[i]
