@@ -136,7 +136,14 @@ def enumerate_designs(variables, gpd_data):
 
 
 def filter_out_invalid_designs(map_designs_2):
+    map_designs_2 = remove_duplicates(map_designs_2)
     return [d for d in map_designs_2 if d.is_valid()]
+
+
+def remove_duplicates(input_list):
+    result = []
+    [result.append(i) for i in input_list if i not in result]
+    return result
 
 
 def split_into_Q_and_C_vars(variables, gpd_data):

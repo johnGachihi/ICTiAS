@@ -21,7 +21,7 @@ class C(StrEnum):
     SHAPE = "SHAPE"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Encoding:
     variable: str
     encoding: str
@@ -39,26 +39,35 @@ class Encoding:
                 "legend": True
             }
         elif self.encoding == Q.COLOR_LIGHTNESS_H:
-            return {"hue": self.variable, "cmap": "Blues", "edgecolor": "white", "linewidth": 0.5, "s": 7, "alpha": 0.8}
+            return {"hue": self.variable, "cmap": "Blues", "edgecolor": "white", "linewidth": 0.5, "s": 7, "alpha": 0.8,
+                    "legend": True, "legend_kwargs": {"shrink": 0.5}}
         elif self.encoding == Q.COLOR_LIGHTNESS_L:
-            return {"hue": self.variable, "cmap": "Blues_r", "edgecolor": "white", "linewidth": 0.5, "s": 7, "alpha": 0.8}
+            return {"hue": self.variable, "cmap": "Blues_r", "edgecolor": "white", "linewidth": 0.5, "s": 7,
+                    "alpha": 0.8, "legend": True, "legend_kwargs": {"shrink": 0.5}}
         elif self.encoding == Q.COLOR_HUE:
-            return {"hue": self.variable, "edgecolor": "white", "linewidth": 0.5, "alpha": 0.8}
+            return {"hue": self.variable, "edgecolor": "white", "linewidth": 0.5, "alpha": 0.8, "s": 7,
+                    "legend": True, "legend_kwargs": {"shrink": 0.5}}
         elif self.encoding == C.COLOR_HUE_C:
-            return {"hue": self.variable, "cmap": "tab10"}
+            return {"hue": self.variable, "cmap": "tab10", "legend": True}
         elif self.encoding == C.SHAPE:
             return {}
 
 
-@dataclass
+@dataclass(frozen=True)
 class Design2:
     encodings: list[Encoding]
+
+    def __hash__(self):
+        return hash(tuple(self.encodings))
 
     def add_encoding(self, encoding):
         if not isinstance(encoding, Encoding):
             raise ValueError("Can only add Encoding objects")
 
-        return Design2(self.encodings + [encoding])
+        es = self.encodings + [encoding]
+        es = sorted(es, key=lambda e: e.variable)
+
+        return Design2(es)
 
     def is_valid(self):
         for i in range(len(self.encodings) - 1):
@@ -66,9 +75,12 @@ class Design2:
             for j in range(i + 1, len(self.encodings)):
                 if self.encodings[j].variable == v or self.encodings[j].encoding == e:
                     return False
-                has_color = (e == Q.COLOR_HUE or e == Q.COLOR_LIGHTNESS_H or e == Q.COLOR_LIGHTNESS_L or e == C.COLOR_HUE_C)
-                other_has_color = (self.encodings[j].encoding == Q.COLOR_HUE or self.encodings[j].encoding == Q.COLOR_LIGHTNESS_H or
-                                     self.encodings[j].encoding == Q.COLOR_LIGHTNESS_L or self.encodings[j].encoding == C.COLOR_HUE_C)
+                has_color = (
+                        e == Q.COLOR_HUE or e == Q.COLOR_LIGHTNESS_H or e == Q.COLOR_LIGHTNESS_L or e == C.COLOR_HUE_C)
+                other_has_color = (self.encodings[j].encoding == Q.COLOR_HUE or self.encodings[
+                    j].encoding == Q.COLOR_LIGHTNESS_H or
+                                   self.encodings[j].encoding == Q.COLOR_LIGHTNESS_L or self.encodings[
+                                       j].encoding == C.COLOR_HUE_C)
                 if has_color and other_has_color:
                     return False
 
@@ -111,15 +123,27 @@ class Design2:
 
             if self.has_encoding(Q.SIZE):
                 size_col = [e.variable for e in self.encodings if e.encoding == Q.SIZE][0]
-                args["scale_func"] = lambda minval, maxval: lambda val: np.interp(val, (gpd_data[size_col].min(), gpd_data[size_col].max()), (4, 20))
+                args["scale_func"] = lambda minval, maxval: lambda val: np.interp(val, (
+                    gpd_data[size_col].min(), gpd_data[size_col].max()), (4, 20))
 
             args.update(self.get_kwargs())
+
+            if "scale" in args and "s" in args:
+                args.pop("s")
+
+            if "hue" in args and "color" in args:
+                args.pop("color")
 
             markers = ["o", "D", "^", "P", "s", "X", "v", "d"]
             unique_values = gpd_data[column].unique()
 
             for i in range(len(unique_values)):
-                print("Args", args)
+                if i > 0:
+                    if "legend" in args:
+                        args.pop("legend")
+                    if "legend_kwargs" in args:
+                        args.pop("legend_kwargs")
+
                 gplt.pointplot(
                     gpd_data[gpd_data[column] == unique_values[i]],
                     projection=gplt.crs.WebMercator(),
@@ -135,8 +159,8 @@ class Design2:
             args = self.get_kwargs()
             has_color_hue = (self.has_encoding(Q.COLOR_HUE) or self.has_encoding(C.COLOR_HUE_C) or
                              self.has_encoding(Q.COLOR_LIGHTNESS_H) or self.has_encoding(Q.COLOR_LIGHTNESS_L))
-            if has_color_hue and "s" in args:
-                pass
+            if "scale" in args and "s" in args:
+                args.pop("s")
 
             if "hue" in args and "color" in args:
                 args.pop("color")
