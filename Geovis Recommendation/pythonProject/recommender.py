@@ -1,14 +1,16 @@
-import geodatasets
-import numpy as np
-import folium
 import geopandas as gpd
 import geoplot as gplt
 import geoplot.crs as gcrs
-import matplotlib.pyplot as plt
+import itertools
 
-from util import is_quantitative, Design
+from matplotlib import pyplot as plt
 
-Q = ["_", "SIZE", "COLOR_LIGHTNESS_H", "COLOR_LIGHTNESS_L", "COLOR_HUE"]
+from util import is_quantitative, Design, is_categorical, Design2, Encoding
+
+# Q = ["_", "SIZE", "COLOR_LIGHTNESS_H", "COLOR_LIGHTNESS_L", "COLOR_HUE"]
+# C = ["_", "SHAPE", "COLOR_HUE_C"]
+Q = ["SIZE", "COLOR_LIGHTNESS_H", "COLOR_LIGHTNESS_L", "COLOR_HUE"]
+C = ["SHAPE", "COLOR_HUE_C"]
 
 
 def recommend_visualisations(
@@ -17,8 +19,9 @@ def recommend_visualisations(
 ):
     gpd_data = gpd.read_file(data)
 
-    if not all([var in gpd_data.columns for var in variables]):
-        raise ValueError("Invalid column")
+    for v in variables:
+        if v not in gpd_data.columns:
+            raise ValueError(f"Invalid column: {v}")
 
     if "geometry" not in gpd_data.columns:
         raise ValueError("Missing geometry column")
@@ -29,37 +32,119 @@ def recommend_visualisations(
         if is_quantitative(gpd_data, v):
             for q in Q:
                 map_designs.append(Design([v], [q]))
+        elif is_categorical(gpd_data, v):
+            for c in C:
+                map_designs.append(Design([v], [c]))
 
-    for design in map_designs:
-        args = {}
+    map_designs_2 = enumerate_designs(variables, gpd_data)
+    map_designs_2 = filter_out_invalid_designs(map_designs_2)
+    for d in map_designs_2:
+        print(d)
 
-        for i in range(len(design.columns)):
-            if design.encodings[i] == "_":
-                args["edgecolor"] = "white"
-                args["s"] = 7
-                args["alpha"] = 0.8
-            if design.encodings[i] == "SIZE":
-                args["scale"] = design.columns[i]
-                args["limits"] = (4, 20)
-                args["edgecolor"] = "black"
-                args["color"] = "white"
-                args["alpha"] = 0.7
-                args["legend"] = True
-            elif design.encodings[i] == "COLOR_LIGHTNESS_H":
-                args["hue"] = design.columns[i]
-                args["cmap"] = "Blues"
-            elif design.encodings[i] == "COLOR_LIGHTNESS_L":
-                args["hue"] = design.columns[i]
-                args["cmap"] = "Blues_r"
-                # args["legend"] = True
-                # args["legend_kwargs"] = {"bbox_to_anchor": (0, 0, 0.5, 0.5)}
-            elif design.encodings[i] == "COLOR_HUE":
-                args["hue"] = design.columns[i]
-                args["legend"] = True
-
-        ax = gplt.webmap(gpd_data, projection=gcrs.WebMercator(), figsize=(10, 10))
-        gplt.pointplot(gpd_data, ax=ax, **args)
-
+    for design in map_designs_2:
+        design.plot(gpd_data)
         plt.show()
 
+    # for design in map_designs:
+    #     ax = gplt.webmap(gpd_data, projection=gcrs.WebMercator(), figsize=(10, 10))
+    #     ax.set_title(str(design))
+    #     args = {}
+    #
+    #     for i in range(len(design.columns)):
+    #         if design.encodings[i] == "_":
+    #             args["edgecolor"] = "white"
+    #             args["s"] = 7
+    #             args["alpha"] = 0.8
+    #
+    #             gplt.pointplot(gpd_data, ax=ax, **args)
+    #         elif design.encodings[i] == "SIZE":
+    #             args["scale"] = design.columns[i]
+    #             args["limits"] = (4, 20)
+    #             args["edgecolor"] = "black"
+    #             args["color"] = "white"
+    #             args["alpha"] = 0.7
+    #             args["legend"] = True
+    #
+    #             gplt.pointplot(gpd_data, ax=ax, **args)
+    #         elif design.encodings[i] == "COLOR_LIGHTNESS_H":
+    #             args["hue"] = design.columns[i]
+    #             args["cmap"] = "Blues"
+    #
+    #             gplt.pointplot(gpd_data, ax=ax, **args)
+    #         elif design.encodings[i] == "COLOR_LIGHTNESS_L":
+    #             args["hue"] = design.columns[i]
+    #             args["cmap"] = "Blues_r"
+    #
+    #             gplt.pointplot(gpd_data, ax=ax, **args)
+    #         elif design.encodings[i] == "COLOR_HUE_C":
+    #             args["hue"] = design.columns[i]
+    #             args["cmap"] = "tab10"
+    #             args["legend"] = True
+    #
+    #             gplt.pointplot(gpd_data, ax=ax, **args)
+    #         elif design.encodings[i] == "COLOR_HUE":
+    #             args["hue"] = design.columns[i]
+    #             args["legend"] = True
+    #
+    #             gplt.pointplot(gpd_data, ax=ax, **args)
+    #         elif design.encodings[i] == "SHAPE":
+    #             column = design.columns[i]
+    #             markers = ["o", "D", "^", "P", "s", "X", "v", "d"]
+    #             unique_values = gpd_data[column].unique()
+    #             print(unique_values)
+    #
+    #             for i in range(len(unique_values)):
+    #                 gplt.pointplot(
+    #                     gpd_data[gpd_data[column] == unique_values[i]],
+    #                     projection=gplt.crs.WebMercator(),
+    #                     ax=ax, marker=markers[i], label=unique_values[i],
+    #                     edgecolor='white', linewidth=0.5, s=10,
+    #                 )
+    #             ax.legend()
+    #
+    #     # gplt.pointplot(gpd_data, ax=ax, **args)
+    #
+    #     # plt.show()
+
     return map_designs
+
+
+def enumerate_designs(variables, gpd_data):
+    designs = []
+
+    Vq, Vc = split_into_Q_and_C_vars(variables, gpd_data)
+
+    # Primitive encodings
+    M = [Encoding(v, k)
+         for v, k in list(itertools.product(Vc, C)) + list(itertools.product(Vq, Q))]
+    print("M", M)
+
+    designs.extend([Design2([m]) for m in M])
+
+    last_added = designs.copy()
+
+    for i in range(2):
+        new_designs = []
+        for j in range(len(last_added)):
+            for m in M:
+                new_designs.append(last_added[j].add_encoding(m))
+
+        designs.extend(new_designs)
+        last_added = new_designs
+
+    return designs
+
+
+def filter_out_invalid_designs(map_designs_2):
+    return [d for d in map_designs_2 if d.is_valid()]
+
+
+def split_into_Q_and_C_vars(variables, gpd_data):
+    Vc, Vq = [], []
+    for v in variables:
+        if is_quantitative(gpd_data, v):
+            Vq.append(v)
+        elif is_categorical(gpd_data, v):
+            Vc.append(v)
+
+    return Vq, Vc
