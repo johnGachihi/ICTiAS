@@ -16,6 +16,8 @@ C = ["SHAPE", "COLOR_HUE_C"]
 def recommend_visualisations(
         data: str,
         variables: list,
+        filter: list = None,
+        figsize=(10, 10)
 ):
     gpd_data = gpd.read_file(data)
 
@@ -38,11 +40,12 @@ def recommend_visualisations(
 
     map_designs_2 = enumerate_designs(variables, gpd_data)
     map_designs_2 = filter_out_invalid_designs(map_designs_2)
+    map_designs_2 = filter_by_user_preferences(map_designs_2, filter)
     for d in map_designs_2:
         print(d)
 
     for design in map_designs_2:
-        design.plot(gpd_data)
+        design.plot(gpd_data, figsize=figsize)
         plt.show()
 
     # for design in map_designs:
@@ -155,3 +158,16 @@ def split_into_Q_and_C_vars(variables, gpd_data):
             Vc.append(v)
 
     return Vq, Vc
+
+
+def filter_by_user_preferences(designs: list[Design2], filter: list = None):
+    if not filter:
+        return designs
+
+    result = []
+
+    for d in designs:
+        if all([d.has_variable(f) for f in filter]):
+            result.append(d)
+
+    return result

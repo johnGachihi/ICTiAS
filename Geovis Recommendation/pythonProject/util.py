@@ -48,9 +48,23 @@ class Encoding:
             return {"hue": self.variable, "edgecolor": "white", "linewidth": 0.5, "alpha": 0.8, "s": 7,
                     "legend": True, "legend_kwargs": {"shrink": 0.5}}
         elif self.encoding == C.COLOR_HUE_C:
-            return {"hue": self.variable, "cmap": "tab10", "legend": True}
+            return {"hue": self.variable, "cmap": "tab10", "legend": True, "s": 7, "alpha": 0.8, "edgecolor": "white", "linewidth": 0.5}
         elif self.encoding == C.SHAPE:
             return {}
+
+    def msg(self):
+        if self.encoding == Q.SIZE:
+            return f"Magnitude of `{self.variable}` (Size)"
+        elif self.encoding == Q.COLOR_LIGHTNESS_H:
+            return f"Highest `{self.variable}` (C-Intensity)"
+        elif self.encoding == Q.COLOR_LIGHTNESS_L:
+            return f"Lowest `{self.variable}` (C-Intensity)"
+        elif self.encoding == Q.COLOR_HUE:
+            return f"Magnitude of `{self.variable}` (C-Hue)"
+        elif self.encoding == C.COLOR_HUE_C:
+            return f"Category of {self.variable} (C-Hue)"
+        elif self.encoding == C.SHAPE:
+            return f"Category of {self.variable} (Shape)"
 
 
 @dataclass(frozen=True)
@@ -95,10 +109,17 @@ class Design2:
     def has_encoding(self, encoding):
         return encoding in [e.encoding for e in self.encodings]
 
-    def plot(self, gpd_data):
+    def has_variable(self, variable):
+        return variable in [e.variable for e in self.encodings]
+
+    def msg(self):
+        return ", ".join([e.msg() for e in self.encodings])
+
+    def plot(self, gpd_data, figsize=(10, 10)):
         print("Plotting", self)
-        ax = gplt.webmap(gpd_data, projection=gcrs.WebMercator(), figsize=(10, 10))
-        ax.set_title(str(self))
+        ax = gplt.webmap(gpd_data, projection=gcrs.WebMercator(), figsize=figsize,
+                         extent=relax_bounds(*gpd_data.total_bounds))
+        ax.set_title(self.msg())
 
         if self.has_encoding(C.SHAPE):
             column = [e.variable for e in self.encodings if e.encoding == C.SHAPE][0]
@@ -149,6 +170,7 @@ class Design2:
                     projection=gplt.crs.WebMercator(),
                     ax=ax, marker=markers[i],
                     label=unique_values[i],
+                    extent=relax_bounds(*gpd_data.total_bounds),
                     # norm=mpl.colors.Normalize(vmin=gpd_data[
                     # edgecolor='white', linewidth=0.5,
                     # s=10,
@@ -157,8 +179,6 @@ class Design2:
             ax.legend()
         else:
             args = self.get_kwargs()
-            has_color_hue = (self.has_encoding(Q.COLOR_HUE) or self.has_encoding(C.COLOR_HUE_C) or
-                             self.has_encoding(Q.COLOR_LIGHTNESS_H) or self.has_encoding(Q.COLOR_LIGHTNESS_L))
             if "scale" in args and "s" in args:
                 args.pop("s")
 
@@ -195,3 +215,18 @@ def is_categorical(gpd_data, column):
         return True
 
     return False
+
+
+def relax_bounds(xmin, ymin, xmax, ymax):
+    """
+    Increases the viewport slightly. Used to ameliorate plot features that fall out of bounds.
+    """
+    window_resize_val_x = 0.1 * (xmax - xmin)
+    window_resize_val_y = 0.1 * (ymax - ymin)
+    extrema = np.array([
+        np.max([-180, xmin - window_resize_val_x]),
+        np.max([-90, ymin - window_resize_val_y]),
+        np.min([180, xmax + window_resize_val_x]),
+        np.min([90, ymax + window_resize_val_y])
+    ])
+    return extrema
