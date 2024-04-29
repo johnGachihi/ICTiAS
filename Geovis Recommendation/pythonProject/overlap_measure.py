@@ -3,10 +3,36 @@ import geopandas as gpd
 from shapely import Polygon
 
 
+def is_crowded(points_grid, data, k=50, threshold=0.25):
+    collisions_grid = points_grid - 1
+    crowded_cells = collisions_grid[collisions_grid > k]
+
+    collision_points_ratio = crowded_cells.sum() / len(data)
+
+    return collision_points_ratio > threshold
+
+
+def compute_crowding_ratio(
+        points: gpd.GeoDataFrame,
+        figsize: tuple,
+        s: float = 7,
+        k: int = 50,
+        threshold: float = 0.25,
+):
+    points_grid = compute_point_distribution_grid(points, figsize, s)
+
+    collisions_grid = points_grid - 1
+    crowded_cells = collisions_grid[collisions_grid > k]
+
+    crowded_points_ratio = crowded_cells.sum() / len(points)
+
+    return crowded_points_ratio, crowded_points_ratio > threshold
+
+
 def compute_point_distribution_grid(
         points: gpd.GeoDataFrame,
         figsize: tuple,
-        s: float,
+        s: float = 7,
 ):
     point_size = s * (1 / 72)  # Convert points to inches
     grid_cell_size = point_size
@@ -42,4 +68,3 @@ def compute_point_distribution_grid(
             cells[row, col] = np.sum(rescaled_data.geometry.intersects(grid_cell))
 
     return cells
-
