@@ -5,7 +5,7 @@ import itertools
 
 from matplotlib import pyplot as plt
 
-from util import is_quantitative, Design, is_categorical, Design2, Encoding
+from util import is_quantitative, Design, is_categorical, Design2, Encoding, VarIntent
 
 # Q = ["_", "SIZE", "COLOR_LIGHTNESS_H", "COLOR_LIGHTNESS_L", "COLOR_HUE"]
 # C = ["_", "SHAPE", "COLOR_HUE_C"]
@@ -17,6 +17,8 @@ def recommend_visualisations(
         data: str,
         variables: list,
         filter: list = None,
+        intent: VarIntent = None,
+        rank: bool = False,
         figsize=(10, 10)
 ):
     gpd_data = gpd.read_file(data)
@@ -41,8 +43,12 @@ def recommend_visualisations(
     map_designs_2 = enumerate_designs(variables, gpd_data)
     map_designs_2 = filter_out_invalid_designs(map_designs_2)
     map_designs_2 = filter_by_user_preferences(map_designs_2, filter)
-    for d in map_designs_2:
-        print(d)
+    if rank:
+        map_designs_2 = order_by_score(map_designs_2, intent)
+
+    # for d in map_designs_2:
+        # print(d)
+        # pass
 
     for design in map_designs_2:
         design.plot(gpd_data, figsize=figsize)
@@ -120,7 +126,7 @@ def enumerate_designs(variables, gpd_data):
     # Primitive encodings
     M = [Encoding(v, k)
          for v, k in list(itertools.product(Vc, C)) + list(itertools.product(Vq, Q))]
-    print("M", M)
+    # print("M", M)
 
     designs.extend([Design2([m]) for m in M])
 
@@ -171,3 +177,7 @@ def filter_by_user_preferences(designs: list[Design2], filter: list = None):
             result.append(d)
 
     return result
+
+
+def order_by_score(designs: list[Design2], intent=None):
+    return sorted(designs, key=lambda d: d.score(intent), reverse=True)

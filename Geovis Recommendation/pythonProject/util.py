@@ -21,6 +21,18 @@ class C(StrEnum):
     SHAPE = "SHAPE"
 
 
+class Intents(StrEnum):
+    HIGH = "HIGH"
+    LOW = "LOW"
+    MAGNITUDE = "MAGNITUDE"
+
+
+@dataclass()
+class VarIntent:
+    variable: str
+    intent: Intents
+
+
 @dataclass(frozen=True)
 class Encoding:
     variable: str
@@ -39,16 +51,17 @@ class Encoding:
                 "legend": True
             }
         elif self.encoding == Q.COLOR_LIGHTNESS_H:
-            return {"hue": self.variable, "cmap": "Blues", "edgecolor": "white", "linewidth": 0.5, "s": 7, "alpha": 0.8,
+            return {"hue": self.variable, "cmap": "Blues", "edgecolor": "white", "linewidth": 0.5, "s": 10, "alpha": 0.8,
                     "legend": True, "legend_kwargs": {"shrink": 0.5}}
         elif self.encoding == Q.COLOR_LIGHTNESS_L:
-            return {"hue": self.variable, "cmap": "Blues_r", "edgecolor": "white", "linewidth": 0.5, "s": 7,
+            return {"hue": self.variable, "cmap": "Blues_r", "edgecolor": "white", "linewidth": 0.5, "s": 10,
                     "alpha": 0.8, "legend": True, "legend_kwargs": {"shrink": 0.5}}
         elif self.encoding == Q.COLOR_HUE:
-            return {"hue": self.variable, "edgecolor": "white", "linewidth": 0.5, "alpha": 0.8, "s": 7,
+            return {"hue": self.variable, "edgecolor": "white", "linewidth": 0.5, "alpha": 0.8, "s": 10,
                     "legend": True, "legend_kwargs": {"shrink": 0.5}}
         elif self.encoding == C.COLOR_HUE_C:
-            return {"hue": self.variable, "cmap": "tab10", "legend": True, "s": 7, "alpha": 0.8, "edgecolor": "white", "linewidth": 0.5}
+            return {"hue": self.variable, "cmap": "tab10", "legend": True, "s": 10, "alpha": 0.8, "edgecolor": "white",
+                    "linewidth": 0.5}
         elif self.encoding == C.SHAPE:
             return {}
 
@@ -66,6 +79,21 @@ class Encoding:
         elif self.encoding == C.SHAPE:
             return f"Category of {self.variable} (Shape)"
 
+    def score(self, intent: VarIntent = None):
+        if self.encoding == Q.SIZE:
+            return 5
+        elif self.encoding == Q.COLOR_LIGHTNESS_H:
+            return 10 if intent is not None and intent.intent == Intents.HIGH else 3
+        elif self.encoding == Q.COLOR_LIGHTNESS_L:
+            return 10 if intent is not None and intent.intent == Intents.LOW else 3
+        elif self.encoding == Q.COLOR_HUE:
+            return 10 if intent is not None and intent.intent == Intents.MAGNITUDE else 4
+
+        elif self.encoding == C.COLOR_HUE_C:
+            return 10
+        elif self.encoding == C.SHAPE:
+            return 5
+
 
 @dataclass(frozen=True)
 class Design2:
@@ -73,6 +101,9 @@ class Design2:
 
     def __hash__(self):
         return hash(tuple(self.encodings))
+
+    def score(self, intent: VarIntent = None):
+        return sum([e.score(intent) for e in self.encodings])
 
     def add_encoding(self, encoding):
         if not isinstance(encoding, Encoding):
@@ -113,13 +144,13 @@ class Design2:
         return variable in [e.variable for e in self.encodings]
 
     def msg(self):
-        return ", ".join([e.msg() for e in self.encodings])
+        return "; ".join([e.msg() for e in self.encodings])
 
     def plot(self, gpd_data, figsize=(10, 10)):
         print("Plotting", self)
         ax = gplt.webmap(gpd_data, projection=gcrs.WebMercator(), figsize=figsize,
                          extent=relax_bounds(*gpd_data.total_bounds))
-        ax.set_title(self.msg())
+        ax.set_title(self.msg() + f" (Score: {self.score()})")
 
         if self.has_encoding(C.SHAPE):
             column = [e.variable for e in self.encodings if e.encoding == C.SHAPE][0]
@@ -155,7 +186,7 @@ class Design2:
             if "hue" in args and "color" in args:
                 args.pop("color")
 
-            markers = ["o", "D", "^", "P", "s", "X", "v", "d"]
+            markers = ["o", "D", "^", "v", "s", "X", "P", "d"]
             unique_values = gpd_data[column].unique()
 
             for i in range(len(unique_values)):
@@ -185,7 +216,7 @@ class Design2:
             if "hue" in args and "color" in args:
                 args.pop("color")
 
-            print("Args", args)
+            # print("Args", args)
             gplt.pointplot(gpd_data, ax=ax, **args)
 
 

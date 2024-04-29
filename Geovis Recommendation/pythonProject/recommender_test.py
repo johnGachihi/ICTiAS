@@ -34,4 +34,4 @@ class TestRecommender(unittest.TestCase):
         print(d.get_kwargs())
 
     def test__(self):
-        recommend_visualisations("./test_nigeria_water_points.geojson", ["water_type", "households_served"])
+        recommend_visualisations("./test_nigeria_water_points.geojson", ["water_type", "households_served"], rank=True)
